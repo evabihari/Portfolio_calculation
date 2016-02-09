@@ -1,0 +1,6 @@
+*.txt
+*.html
+*.beam
+Mnesia*
+log_report
+

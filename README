@@ -1,0 +1,13 @@
+Purpose:
+Extract daily exchange rates from Viennalife and MetLife Hungarian portal and calculate the value of the existing portfolio
+Input files:
+portfolio.txt - structure:
+Paper Name | number_of_papers |Currency(HUF/EUR| Paper type
+
+Usage:
+arfolyam:start().
+arfolyam:read_portfolio().
+arfolyam:calculate_portfolio().
+
+In order to check teh Mnesia content the easiest way:
+mnesia:dump_to_textfile("mnesia.txt").
