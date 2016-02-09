@@ -17,7 +17,6 @@
 %%% API
 %%%===================================================================
 calculate_portfolio()->
-    FirstKey=ets:first(portfolio),
     {{Y,M,D},_}=calendar:local_time(),
     Today=int_to_string(Y)++"-"++int_to_string(M)++"-"++int_to_string(D),
     case mnesia:dirty_match_object(daily_values,
@@ -25,6 +24,7 @@ calculate_portfolio()->
         [] -> ok;
         Results -> remove_old_data(Results)
     end,
+    FirstKey=mnesia:dirty_first(portfolio),
     calculate_portfolio2(FirstKey,Today).
 %%--------------------------------------------------------------------
 %% @doc
@@ -40,12 +40,12 @@ calculate_portfolio2('$end_of_table',Today) ->
     ok;
 calculate_portfolio2(Key,Today) ->
     Value=find_daily_value(Key,Today),
-    [Portfolio]=ets:lookup(portfolio,Key),
+    [Portfolio]=mnesia:dirty_read(portfolio,Key),
     agregate_daily_values(Portfolio,Value,Today),
-    calculate_portfolio2(ets:next(portfolio,Key),Today).
+    calculate_portfolio2(mnesia:dirty_next(portfolio,Key),Today).
 
 find_daily_value(Key,Date) ->
-    case ets:lookup(exchanges,{Key,Date}) of
+    case mnesia:dirty_read(exchanges,{Key,Date}) of
         [] ->
             Date1=less(Date),
             find_daily_value(Key,Date1);
@@ -86,24 +86,24 @@ int_to_string(Int) ->
 remove_old_data([]) ->
     ok;
 remove_old_data([DV|List]) ->
-    mnesia:dirty_write(daily_values,DV#daily_value{value=0}),
+    mnesia:dirty_delete(daily_values,DV#daily_value.date_currency_type),
     remove_old_data(List).
 
 agregate_daily_values(Portfolio,Value,Date) ->
-    %% Name=Portfolio#paper.name,
+    _Name=Portfolio#paper.name,
     Number=Portfolio#paper.number,
     Currency=Portfolio#paper.currency,
     Type=Portfolio#paper.type,
     Val=Number*Value,
-    New_DV=case ets:lookup(daily_values,{Date,Currency,Type}) of
-               [] -> #daily_value{
+    New_DV=case mnesia:dirty_read(daily_values,{Date,Currency,Type}) of
+               [] ->   #daily_value{
                         date_currency_type={Date,Currency,Type},
                         value=Val};
                [DV|_] -> case DV#daily_value.date_currency_type of
-                             {_,_,"SUM"} ->
-                                 #daily_value{
-                                    date_currency_type={Date,Currency,Type},
-                                    value=Val};
+                             %% {_,_,"SUM"} ->
+                             %%     #daily_value{
+                             %%        date_currency_type={Date,Currency,Type},
+                             %%        value=Val};
                              {_,_,_Other} ->
                                  OldV=DV#daily_value.value,
                                  NewV=OldV+Val,
@@ -113,7 +113,7 @@ agregate_daily_values(Portfolio,Value,Date) ->
     mnesia:dirty_write(daily_values,New_DV).
 
 sum_daily_values(Date) ->
-    sum_daily_values(Date,0,0,ets:first(daily_values)).
+    sum_daily_values(Date,0,0,mnesia:dirty_first(daily_values)).
 sum_daily_values(Date,EUR_SUM, HUF_SUM,'$end_of_table') ->
     EUR_DV=#daily_value{
               date_currency_type={Date,"EUR","SUM"},
@@ -125,16 +125,18 @@ sum_daily_values(Date,EUR_SUM, HUF_SUM,'$end_of_table') ->
     mnesia:dirty_write(daily_values,HUF_DV);
 sum_daily_values(Date,EUR_SUM, HUF_SUM,Key) ->
    {New_EUR_SUM,NEW_HUF_SUM} = case Key of
+                                   {Date,"EUR","SUM"} -> {EUR_SUM,HUF_SUM};
+                                   {Date,"HUF","SUM"} -> {EUR_SUM,HUF_SUM};
                                    {Date,"EUR",_} ->
-                                       [Record]=ets:lookup(daily_values,Key),
+                                       [Record]=mnesia:dirty_read(daily_values,Key),
                                        {EUR_SUM+Record#daily_value.value,HUF_SUM};
                                    {Date,"HUF",_} ->
-                                       [Record]=ets:lookup(daily_values,Key),
+                                       [Record]=mnesia:dirty_read(daily_values,Key),
                                        {EUR_SUM,HUF_SUM+Record#daily_value.value};
                                    _ ->
                                         {EUR_SUM,HUF_SUM}
                                end,
-    New_key=ets:next(daily_values,Key),
+    New_key=mnesia:dirty_next(daily_values,Key),
     sum_daily_values(Date,New_EUR_SUM,NEW_HUF_SUM,New_key).
     
 encode_name([]) -> "";

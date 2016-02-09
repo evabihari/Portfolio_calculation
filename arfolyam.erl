@@ -28,7 +28,7 @@ start(Url) ->
 read_portfolio()->
     read_portfolio(?PORTFOLIO_FILE).
 read_portfolio(Name) ->
-    {ok,F} = file:open(Name,[read,write]),
+    {ok,F} = file:open(Name,[read]),
     read_papers(F).
 
 calculate_portfolio()->
@@ -119,13 +119,12 @@ decode_values([Value|List],Date) ->
 
     [{_,_,[RName]}] =  mochiweb_xpath:execute(PName,Value),
     Name=binary_to_list(RName),
-    RValue = case mochiweb_xpath:execute(PValue,Value) of
+    _RValue = case mochiweb_xpath:execute(PValue,Value) of
                  [{_,_,[RV]}] -> Rate=binary_to_list(RV),
                                  create_record_and_store(Name, Rate, Date),
                                  Rate;
-                 _ -> "don't know"
+                 _ -> dont_know
              end,
-    io:format("~nName=~p,  Value=~p~n",[Name,RValue]),
     decode_values(List,Date).
 
 extract_date(Struct,?VL_URL)->
@@ -161,7 +160,6 @@ create_record_and_store(Name, RateInfo, Date) ->
 decode_ml_types([],_Date) ->
     ok;
 decode_ml_types([Result|List],Date) ->
-    io:format(" ~p ~p~n",[Date, Result]),
     NamePart=mochiweb_xpath:execute("tr/td/a",Result),
     Name=extract_value(NamePart),
     %% [{<<"a">>,
@@ -172,7 +170,6 @@ decode_ml_types([Result|List],Date) ->
     %%   [{<<"class">>,<<"number number-1">>}],
     %%   [<<"1,13703 HUF">>]}]
     ValueString=extract_value(ValuePart),
-    io:format(" ~p ~p~n",[Name, ValueString]),
     create_record_and_store(Name, ValueString,Date),
     decode_ml_types(List,Date).
 
@@ -190,12 +187,13 @@ read_papers(F) ->
     end.
 
 handle_data(Data,F) ->
-    [Name,Number,Currency,_Type|_]=string:tokens(Data,"|"),
+    [Name,Number,Currency,Type|_]=string:tokens(Data,"|"),
     {N,_}=string:to_integer(string:strip(Number)),
     Name1=string:strip(Name,both),
     Record=#paper{name=Name1,
                   number=N,
-                  currency=Currency},
+                  currency=Currency,
+                  type=Type},
     NewRecord= case mnesia:dirty_read(portfolio,Name1) of
                    [] -> Record;
                    [Old_rec] -> %same type of paper already in the portfolio
