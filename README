@@ -14,11 +14,21 @@ Azsia reszveny | 102 | HUF | VL_eseti`
 
 ## Usage: ##
 
-1. parse web pages with teh latest exchange rates: `arfolyam:start(). ` 
+1. parse web pages with the latest exchange rates: `arfolyam:start(). ` 
 2. read the above mentioned input file and store portfolio information
 into mnesia: ` arfolyam:read_portfolio(). `
-3. calculate the actual value of the portfolio based on teh latest
+3. calculate the actual value of the portfolio based on the latest
 exchange rates: ` arfolyam:calculate_portfolio().`
 
 In order to check the Mnesia content the easiest way:
 ` mnesia:dump_to_textfile("mnesia.txt"). `
+
+## Cron job on OS X ##
+
+time when I want to execute the task:
+0 13 * * * (every day at 1:00 p.m)
+
+Name of the escript:
+`daily`
+crontab entry:
+`0 13 * * * <PATH_TO_THE ESCRIPT\daily  `

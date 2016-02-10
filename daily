@@ -3,6 +3,7 @@
 %%! -smp enable -mnesia debug verbose dir 'Mnesia.nonode@nohost'
 -include_lib("records.hrl").
 main(_) ->
+        shell_default:cd("/Users/evabihari/Erlang_apps/vienna_life_value"),
         file:read_link_info("records.hrl"),
         try
         %%     mnesia:restore("backup.bup",[{default_op, recreate_tables}])
