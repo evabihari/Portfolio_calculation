@@ -3,15 +3,17 @@
 %%! -smp enable -mnesia debug verbose dir 'Mnesia.nonode@nohost'
 -include_lib("records.hrl").
 main(_) ->
-       file:read_link_info("records.hrl"),
+        file:read_link_info("records.hrl"),
+        try
+        %%     mnesia:restore("backup.bup",[{default_op, recreate_tables}])
+               mnesia:load_textfile("mnesia.txt")
+        catch
+            {aborted,enoent} -> 
+                io:format("Backup does not exist, starting with clean database",[]);
+            {error,open} -> io:format("File does not exist, starting with clean database",[])
+        end,
 	arfolyam:start(),
-        %% mnesia:delete_table(daily_values),
-        %% mnesia:create_table(daily_values, 
-        %%                      [{disc_copies,[node()]},
-        %%                       {type, ordered_set},
-        %%                       {attributes, 
-        %%                        record_info(fields, daily_value)},
-        %%                       {record_name, daily_value}]),
         arfolyam:read_portfolio(),
 	arfolyam:calculate_portfolio(),
-	mnesia:dump_to_textfile("mnesia.txt").
+        mnesia:dump_to_textfile("mnesia.txt"),
+        mnesia:backup("backup.bup").

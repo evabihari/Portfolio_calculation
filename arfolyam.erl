@@ -190,11 +190,10 @@ handle_data(Data,F) ->
     [Name,Number,Currency,Type|_]=string:tokens(Data,"|"),
     {N,_}=string:to_integer(string:strip(Number)),
     Name1=string:strip(Name,both),
-    Record=#paper{name=Name1,
+    Record=#paper{name_and_type={Name1,Type},
                   number=N,
-                  currency=Currency,
-                  type=Type},
-    NewRecord= case mnesia:dirty_read(portfolio,Name1) of
+                  currency=Currency},
+    NewRecord= case mnesia:dirty_read(portfolio,{Name1,Type}) of
                    [] -> Record;
                    [Old_rec] -> %same type of paper already in the portfolio
                        Old_number=Old_rec#paper.number,

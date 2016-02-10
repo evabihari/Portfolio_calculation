@@ -39,16 +39,17 @@ calculate_portfolio2('$end_of_table',Today) ->
     sum_daily_values(Today),
     ok;
 calculate_portfolio2(Key,Today) ->
-    Value=find_daily_value(Key,Today),
+    {Name,_Type}=Key,
+    Value=find_daily_value(Name,Today),
     [Portfolio]=mnesia:dirty_read(portfolio,Key),
     agregate_daily_values(Portfolio,Value,Today),
     calculate_portfolio2(mnesia:dirty_next(portfolio,Key),Today).
 
-find_daily_value(Key,Date) ->
-    case mnesia:dirty_read(exchanges,{Key,Date}) of
+find_daily_value(Name,Date) ->
+    case mnesia:dirty_read(exchanges,{Name,Date}) of
         [] ->
             Date1=less(Date),
-            find_daily_value(Key,Date1);
+            find_daily_value(Name,Date1);
         [Record] ->
             Record#exchange.value
     end.
@@ -90,10 +91,9 @@ remove_old_data([DV|List]) ->
     remove_old_data(List).
 
 agregate_daily_values(Portfolio,Value,Date) ->
-    _Name=Portfolio#paper.name,
+    {_Name,Type}=Portfolio#paper.name_and_type,
     Number=Portfolio#paper.number,
     Currency=Portfolio#paper.currency,
-    Type=Portfolio#paper.type,
     Val=Number*Value,
     New_DV=case mnesia:dirty_read(daily_values,{Date,Currency,Type}) of
                [] ->   #daily_value{

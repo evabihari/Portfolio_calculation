@@ -4,10 +4,9 @@
          value,
          currency}).
 -record(paper,
-        {name,
+        {name_and_type,
          number,
-         currency,
-         type}).
+         currency}).
 -record(daily_value,
         {date_currency_type,
           %ex: {"2016-01-28,"HUF"}
