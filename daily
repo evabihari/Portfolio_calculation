@@ -1,4 +1,4 @@
-#!/usr/bin/env escript
+#!/usr/bin/env /Users/evabihari/.kerl/r18/bin/escript
 %% -*- erlang -*-
 %%! -smp enable -mnesia debug verbose dir 'Mnesia.nonode@nohost'
 -include_lib("records.hrl").
