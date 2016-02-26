@@ -1,6 +1,8 @@
 *.txt
 *.html
 *.beam
+*.pdf
+*.dat
 Mnesia*
 log_report
-
+ebin/*
