@@ -13,8 +13,8 @@
          calculate_portfolio/0].
 -define (VL_URL,"https://www.viennalife.hu/befektetes/eszkozalapok/napi-arfolyam").
 -define (ML_URL,"http://www.metlifehungary.hu/portfoliok").
--define (PORTFOLIO_FILE,"portfolio.txt").
--include("records.hrl").
+-define (PORTFOLIO_FILE,"data/portfolio.txt").
+-include("../include/records.hrl").
 
 %%%===================================================================
 %%% API
@@ -44,8 +44,8 @@ calculate_portfolio()->
 %%% Internal functions
 %%%===================================================================
 init() ->
-    code:add_pathz("/Users/evabihari/external/mochiweb/ebin"),
-    code:add_pathz("/Users/evabihari/external/mochiweb_xpath/ebin"),
+    %% code:add_pathz("/Users/evabihari/external/mochiweb/ebin"),
+    %% code:add_pathz("/Users/evabihari/external/mochiweb_xpath/ebin"),
     error_logger:tty(false),
     error_logger:logfile({open, log_report}),
     inets:start(),

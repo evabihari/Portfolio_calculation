@@ -8,7 +8,7 @@ stored into Mnesia disc copies.
 Input files:
 ------------
 
-`portfolio.txt` - structure with example:
+`data/portfolio.txt` - structure with example:
 `Paper Name | number_of_papers |Currency(HUF/EUR| Paper type
 Azsia reszveny | 102 | HUF | VL_eseti`
 
@@ -21,7 +21,7 @@ into mnesia: ` arfolyam:read_portfolio(). `
 exchange rates: ` arfolyam:calculate_portfolio().`
 
 In order to check the Mnesia content the easiest way:
-` mnesia:dump_to_textfile("mnesia.txt"). `
+` mnesia:dump_to_textfile(“data/mnesia.txt"). `
 
 ## Cron job on OS X ##
 

@@ -7,11 +7,15 @@
 %%% Created :  9 Feb 2016 by eva.bihari <evabihari@Evas-MacBook-Pro.local>
 %%%-------------------------------------------------------------------
 -module(utils).
--include("records.hrl").
+-include("../include/records.hrl").
 %% API
 -export([calculate_portfolio/0,
          encode_name/1,
-         create_date/3]).
+         create_date/3,
+         dump_daily_values_table/0]).
+
+-define (GEN_GP,"scripts/generic.gp").
+-define (SPEC_GP,"scripts/specific.gp").
 
 %%%===================================================================
 %%% API
@@ -191,3 +195,59 @@ create_date(Y,M,D) when D<10  ->
     integer_to_list(Y)++"-"++integer_to_list(M)++"-0"++integer_to_list(D);
 create_date(Y,M,D) ->
     integer_to_list(Y)++"-"++integer_to_list(M)++"-"++integer_to_list(D).
+
+dump_daily_values_table() ->
+    dump_daily_values_table("HUF"),
+    dump_daily_values_table("EUR").
+
+
+dump_daily_values_table(Type) ->
+    Name="data/D_"++Type++".dat",
+    {ok,F} = file:open(Name,[read,write]),
+    Sets=store_values(F,ets:match(daily_values,{'_',{'$1',Type,'$2'},'$3'}),sets:new()),
+    file:close(F),
+    draw_diagram(Name,sets:to_list(Sets)).
+
+store_values(_F,[],Types) ->
+    Types;
+store_values(F,[Value|VList],Set) ->
+    io:format("~p ~n",[Value]),
+    [Date, Type,Money]=Value,
+    String=Date ++ "|" ++ Type ++ "|" ++ io_lib:write(Money) ++ "\n",
+    file:write(F,String),
+    NewSet=sets:add_element(Type,Set),
+    store_values(F,VList,NewSet).
+
+draw_diagram(FileName,Types) ->
+    file:copy(?GEN_GP,?SPEC_GP),
+    {ok,Target}=file:open(?SPEC_GP,[read,append]),
+    String="set title \"" ++ FileName ++ " egyenlegek \" \n",
+    ok=file:write(Target, String),
+    add_diagram(Target,FileName,Types),
+    file:close(Target),
+    Cmd="gnuplot "++ ?SPEC_GP,
+    os:cmd(Cmd).
+
+
+add_diagram(Target,FileName,[Type|Types]) ->
+    String = "plot "++generate_string(FileName,Type),
+    io:format("String is~p ~n",[String]),
+    ok=file:write(Target,String),
+    add_diagrams(Target,FileName,Types).
+
+add_diagrams(Target,FN,[]) ->
+    String = "set output '| /usr/local/bin/ps2pdf - " ++ FN ++ ".pdf \n",
+    ok=file:write(Target,String),
+    S2= "set size 1,1 \n" ++
+        "set term post portrait color \"Times-Roman\" 12 \n" ++
+        "replot \n",
+    ok=file:write(Target,S2),
+    ok;
+add_diagrams(Target,FileName,[Type|Types]) ->
+    String = "replot "++generate_string(FileName,Type),
+    ok=file:write(Target,String),
+    add_diagrams(Target,FileName,Types).
+
+generate_string(FileName,Type) ->
+    "\""++FileName++"\""++" using 1:(stringcolumn(2) eq "++"\""++Type++"\""++
+        "? column(3):1/0) title "++"\""++Type++"\""++" ls 15*(rand(0))" ++ "\n".
