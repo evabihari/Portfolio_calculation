@@ -16,6 +16,7 @@
 
 -define (GEN_GP,"scripts/generic.gp").
 -define (SPEC_GP,"scripts/specific.gp").
+-define(GOOGLE_PATH,"/Users/evabihari/Google Drive/Portfolio/").
 
 %%%===================================================================
 %%% API
@@ -197,12 +198,13 @@ create_date(Y,M,D) ->
     integer_to_list(Y)++"-"++integer_to_list(M)++"-"++integer_to_list(D).
 
 dump_daily_values_table() ->
-    dump_daily_values_table("HUF"),
-    dump_daily_values_table("EUR").
+    {{Y,M,D},_}=calendar:local_time(),
+    DateString=integer_to_list(Y)++"-"++integer_to_list(M)++"-"++integer_to_list(D),
+    dump_daily_values_table("HUF",DateString),
+    dump_daily_values_table("EUR",DateString).
 
-
-dump_daily_values_table(Type) ->
-    Name="data/D_"++Type++".dat",
+dump_daily_values_table(Type,DateString) ->
+    Name="data/"++DateString++"-"++Type++".dat",
     {ok,F} = file:open(Name,[read,write]),
     Sets=store_values(F,ets:match(daily_values,{'_',{'$1',Type,'$2'},'$3'}),sets:new()),
     file:close(F),
@@ -211,7 +213,6 @@ dump_daily_values_table(Type) ->
 store_values(_F,[],Types) ->
     Types;
 store_values(F,[Value|VList],Set) ->
-    io:format("~p ~n",[Value]),
     [Date, Type,Money]=Value,
     String=Date ++ "|" ++ Type ++ "|" ++ io_lib:write(Money) ++ "\n",
     file:write(F,String),
@@ -226,12 +227,15 @@ draw_diagram(FileName,Types) ->
     add_diagram(Target,FileName,Types),
     file:close(Target),
     Cmd="gnuplot "++ ?SPEC_GP,
-    os:cmd(Cmd).
-
+    os:cmd(Cmd),
+    FName= FileName--"data/",
+    GoogleFile=?GOOGLE_PATH ++FName++".pdf", 
+    %% Wait until gnuplot will be finished
+    timer:sleep(3000),
+    file:copy(FileName++".pdf",GoogleFile).
 
 add_diagram(Target,FileName,[Type|Types]) ->
     String = "plot "++generate_string(FileName,Type),
-    io:format("String is~p ~n",[String]),
     ok=file:write(Target,String),
     add_diagrams(Target,FileName,Types).
 

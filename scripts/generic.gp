@@ -9,6 +9,9 @@ set key below
 set key left invert
 set grid y
 set yrange [9000 :*]
+set decimalsign locale; set decimalsign ","
+set decimal locale 'en_US.UTF-8'
+set format y "%'.f" 
 set ylabel "SUM" tc lt 1
 set ytics nomirror
 set xtics nomirror rotate by -45 scale 0 font ",10" 
