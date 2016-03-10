@@ -226,7 +226,7 @@ draw_diagram(FileName,Types) ->
     ok=file:write(Target, String),
     add_diagram(Target,FileName,Types),
     file:close(Target),
-    Cmd="gnuplot "++ ?SPEC_GP,
+    Cmd="/usr/local/bin/gnuplot "++ ?SPEC_GP,
     os:cmd(Cmd),
     FName= FileName--"data/",
     GoogleFile=?GOOGLE_PATH ++FName++".pdf", 
@@ -240,7 +240,9 @@ add_diagram(Target,FileName,[Type|Types]) ->
     add_diagrams(Target,FileName,Types).
 
 add_diagrams(Target,FN,[]) ->
-    String = "set output '| /usr/local/bin/ps2pdf - " ++ FN ++ ".pdf \n",
+    {ok,Cwd}=file:get_cwd(),
+    io:format("Current directory is~p~n",[Cwd]),
+    String = "set output '| /usr/local/bin/ps2pdf - " ++ Cwd++"/"++FN ++ ".pdf \n",
     ok=file:write(Target,String),
     S2= "set size 1,1 \n" ++
         "set term post portrait color \"Times-Roman\" 12 \n" ++

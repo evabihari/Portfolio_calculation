@@ -32,3 +32,5 @@ Name of the escript:
 `daily`
 crontab entry:
 `0 13 * * * <PATH_TO_THE ESCRIPT\daily  `
+
+env EDITOR=nano crontab -e
