@@ -50,6 +50,8 @@ calculate_portfolio2(Key,Today) ->
     agregate_daily_values(Portfolio,Value,Today),
     calculate_portfolio2(mnesia:dirty_next(portfolio,Key),Today).
 
+find_daily_value(_Name,"2010-01-01") ->
+    0;
 find_daily_value(Name,Date) ->
     case mnesia:dirty_read(exchanges,{Name,Date}) of
         [] ->

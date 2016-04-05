@@ -10,9 +10,13 @@
 -export [start/0,start/1,
          read_portfolio/0,
          read_portfolio/1,
-         calculate_portfolio/0].
+         calculate_portfolio/0,
+         mkb/0,
+         get_value/1,
+         init/0].
 -define (VL_URL,"https://www.viennalife.hu/befektetes/eszkozalapok/napi-arfolyam").
 -define (ML_URL,"http://www.metlifehungary.hu/portfoliok").
+-define (MKB_URL,"https://alapkezelo.mkb.hu/arfolyamok_es_hozamok/arfolyam_tablazat/index.html").
 -define (PORTFOLIO_FILE,"data/portfolio.txt").
 -include("../include/records.hrl").
 
@@ -21,6 +25,7 @@
 %%%===================================================================
 start() ->
     start(?VL_URL),
+    mkb(),
     start(?ML_URL,ok).
 start(Url) ->
     start(Url,init()).
@@ -232,9 +237,54 @@ create_portfolio_table()->
     end.
 
 
+mkb()->
+    R=httpc:request(?MKB_URL),
+    {ok, {{"HTTP/1.1",_ReturnCode, _State}, _Head, Body}} = R,
+    Struct=mochiweb_html:parse(Body),
+    Path="html/body/div/div/div/table/tr/td",
+    ResultList=mochiweb_xpath:execute(Path,Struct),
+    % io:format("ResultList: ~p~n",[ResultList]),
+    {ok,File} = file:open("MKB_results.txt",[read,write]),
+    file:write(File,io_lib:print(ResultList)),
+    decode_mkb_results(ResultList).
 
 
+decode_mkb_results([])->
+    [];
+decode_mkb_results([R1,R2,R3,R4,R5|List]) ->
+    [Name1,Date,_Netto_value,Rate,_Year_profit]=
+        lists:map(fun arfolyam:get_value/1,[R1,R2,R3,R4,R5]),
+    % io:format("~s ~p ~p ~p ~p ~n",[Name1,Date,Netto_value,Rate,Year_profit]),
+    case Name1 of
+        [] -> ok;
+        Name ->
+            Value = case string:to_float(Rate) of
+                        {error,_} -> 0;
+                        {V,[]} -> V;
+                        {_V1,_Remaining} ->
+                            [S1,S2,S3|_]=string:tokens(Rate,",."),
+                            N2=length(S2),
+                            N3=length(S3),
+                            list_to_integer(S1)*math:pow(10,N2)+list_to_integer(S2)+
+                                list_to_integer(S3)*math:pow(10,-1*N3)
+            end,
+            Record=#exchange{name_and_date=
+                                 {utils:encode_name(string:strip(Name,both)),Date},
+                              value=Value,
+                              currency="HUF"},
+            mnesia:dirty_write(exchanges,Record),
+            decode_mkb_results(List)
+     end;
+decode_mkb_results(_) ->
+    io:format("??~n",[]),
+    ok.
 
+get_value({<<"td">>,[],[{<<"a">>,_,_}|_]}) ->
+    [];
+get_value({<<"td">>,_,[BinValue|_]}) ->
+    re:replace(binary_to_list(BinValue), "(^\\s+)|(\\s+$)", "", [global,{return,list}]).
 
-
-
+         %% {daily_values,[{record_name,daily_value},
+         %%                {attributes,[date_currency_type,value]}]},
+         %% {exchanges,[{record_name,exchange},
+         %%             {attributes,[name_and_date,value,currency]}]}]}.
