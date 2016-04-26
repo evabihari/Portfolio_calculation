@@ -1,3 +1,4 @@
+#+begin_src markdown
 Purpose:
 ========
 
@@ -28,9 +29,25 @@ In order to check the Mnesia content the easiest way:
 time when I want to execute the task:
 0 13 * * * (every day at 1:00 p.m)
 
-Name of the escript:
+Name of the escript: 
 `daily`
 crontab entry:
 `0 13 * * * <PATH_TO_THE ESCRIPT\daily  `
 
 env EDITOR=nano crontab -e
+
+## Create CSV files from the Mnesia database ##
+
+`utils:dump_to_csv(FileName)`
+will dump the daily portfolio values to `Filename` but currently it is
+not ordered by any column.
+ToDo - set Order by Date
+
+`utils:sum_csv(FileName)`
+will write a summary about the portfolio to `Filename`
+Ordered by Date and all calculated values are written to 1 row/date
+
+To open the CSV files on Mac in Excel you need to use the "Import"
+function, than choose fields by delimiter (not the fixed with)
+
+$+end_src

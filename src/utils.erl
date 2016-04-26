@@ -13,7 +13,11 @@
          encode_name/1,
          create_date/3,
          dump_daily_values_table/0,
-	 dump_to_csv/1]).
+	 dump_to_csv/1,
+	 create_date_list/1,
+	 get_and_sort_dates/0,
+	 collect_paper_types/0,
+	 sum_cvs/1]).
 
 -define (GEN_GP,"scripts/generic.gp").
 -define (SPEC_GP,"scripts/specific.gp").
@@ -206,17 +210,17 @@ dump_daily_values_table() ->
     dump_daily_values_table("HUF",DateString),
     dump_daily_values_table("EUR",DateString).
 
-dump_daily_values_table(Type,DateString) ->
-    Name="data/"++DateString++"-"++Type++".dat",
+dump_daily_values_table(Currency,DateString) ->
+    Name="data/"++DateString++"-"++Currency++".dat",
     {ok,F} = file:open(Name,[read,write]),
-    Sets=store_values(F,ets:match(daily_values,{'_',{'$1',Type,'$2'},'$3'}),sets:new()),
+    Sets=store_values(F,ets:match(daily_values,{'_',{'$1',Currency,'$2'},'$3'}),sets:new()),
     file:close(F),
     draw_diagram(Name,sets:to_list(Sets)).
 
 store_values(_F,[],Types) ->
     Types;
 store_values(F,[Value|VList],Set) ->
-    [Date, Type,Money]=Value,
+    [Date, Type, Money]=Value,
     String=Date ++ "|" ++ Type ++ "|" ++ io_lib:write(Money) ++ "\n",
     file:write(F,String),
     NewSet=sets:add_element(Type,Set),
@@ -283,3 +287,100 @@ write_record(Target,Key) ->
     NewKey=ets:next(daily_values,Key),
     write_record(Target,NewKey).
     
+create_date_list('$end_of_table')->
+    [];
+create_date_list({Date,Currency,Type}) ->
+    NewKey=ets:next(daily_values,{Date,Currency,Type}),
+    [Date|create_date_list(NewKey)];
+create_date_list(Key) ->
+    NewKey=ets:next(daily_values,Key),
+    create_date_list(NewKey).   
+
+	    
+sort_date_list(DateList) ->
+    One={1,0,0},
+    F=fun(X,Y) -> X_Date=string_to_date(X),
+		  Y_Date=string_to_date(Y),
+		  calendar:datetime_to_gregorian_seconds({X_Date,One}) < calendar:datetime_to_gregorian_seconds({Y_Date,One})
+      end,
+    lists:sort(F,DateList).
+    
+string_to_date(DateString) ->
+    [Y,M,D]=string:tokens(DateString,"-"),
+    {to_int(Y),to_int(M),to_int(D)}.
+
+to_int(IntString)->
+    {Int,_}=string:to_integer(IntString),
+    Int.
+
+get_and_sort_dates()->
+%    Dates=create_date_list(ets:first(daily_values)),
+    Dates=go_through(1,ets:first(daily_values)),
+    sort_date_list(lists:usort(Dates)).
+
+collect_paper_types() ->
+    Types=go_through2(2,3,ets:first(daily_values)),
+    lists:usort(Types).
+
+go_through(_Element,'$end_of_table') ->
+    [];
+go_through(Element,Key) when is_tuple(Key)->
+    Item=element(Element,Key),
+    [Item|go_through(Element,ets:next(daily_values,Key))];
+go_through(Element,Key) ->
+    go_through(Element,ets:next(daily_values,Key)).
+
+go_through2(_Element,_,'$end_of_table') ->
+    [];
+go_through2(E1,E2,Key) when is_tuple(Key)->
+    Item1=element(E1,Key),
+    Item2=element(E2,Key),
+    [{Item1,Item2}|go_through2(E1,E2,ets:next(daily_values,Key))];
+go_through2(E1,E2,Key) ->
+    go_through2(E1,E2,ets:next(daily_values,Key)).
+
+sum_cvs(FileName) ->
+    mnesia:start(),
+    mnesia:load_textfile("data/mnesia.txt"),
+    {ok,Target}=file:open(FileName,[write]),
+    Paper_Types=collect_paper_types(),
+    Type_header=skip_currency( Paper_Types),
+    csv_gen:row(Target, ["Date"]++Type_header),
+    Dates=get_and_sort_dates(),
+    write_rows(Target,Paper_Types,Dates),
+    file:close(Target).
+
+
+write_rows(_File,_Types,[]) ->
+    ok;
+write_rows(File,Types,[Date|Dates]) ->
+    Data=generate_row(Types, Date,[]),
+    csv_gen:row(File,[Date]++format_data(Data)),
+    write_rows(File,Types,Dates).
+
+generate_row([],_Date,ValueList) ->
+    lists:reverse(ValueList);
+generate_row([{Curr,Type}|Types], Date, ValueList) ->
+    Value=find_value({Curr,Type},Date),
+    generate_row(Types, Date, [{Curr,Value}|ValueList]).
+
+find_value({Curr,Type},Date) ->
+    case ets:match(daily_values,{daily_value,{Date,Curr,Type},'$2'}) of
+	[] -> 0.0;
+	[[Value]|_] -> Value
+    end.
+
+skip_currency([]) ->	  
+    [];
+skip_currency([{_Curr,Type}|List]) ->	
+    io_lib:fwrite("~s",[Type])++skip_currency(List).
+
+
+%% convert [{"EUR",9988.4972},{"HUF",12000.3}|List] to ["9988.5 EUR","12000.3 HUF"|List]
+format_data([]) ->
+    [];
+format_data([{_Currency, " "}|List]) ->
+    [" "|format_data(List)];
+format_data([{Currency, Value}|List]) ->
+    [SValue]=io_lib:fwrite("~.2f",[Value]),
+    [SValue ++" "++ Currency|format_data(List)].
