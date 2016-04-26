@@ -12,7 +12,8 @@
 -export([calculate_portfolio/0,
          encode_name/1,
          create_date/3,
-         dump_daily_values_table/0]).
+         dump_daily_values_table/0,
+	 dump_to_csv/1]).
 
 -define (GEN_GP,"scripts/generic.gp").
 -define (SPEC_GP,"scripts/specific.gp").
@@ -259,3 +260,26 @@ add_diagrams(Target,FileName,[Type|Types]) ->
 generate_string(FileName,Type) ->
     "\""++FileName++"\""++" using 1:(stringcolumn(2) eq "++"\""++Type++"\""++
         "? column(3):1/0) title "++"\""++Type++"\""++" ls 15*(rand(0))" ++ "\n".
+
+dump_to_csv(FileName) ->
+    mnesia:start(),
+    mnesia:load_textfile("data/mnesia.txt"),
+    {ok,Target}=file:open(FileName,[write]),
+    csv_gen:row(Target, ["Date","Currency","Type","Value"]),
+    write_record(Target, ets:first(daily_values)),
+    file:close(Target).
+
+write_record(_Target,'$end_of_table') ->
+    ok;
+write_record(Target,Key) ->
+    io:format("~p~n",[Key]),
+    [Data]=ets:lookup(daily_values,Key),
+    case Key of
+	{Date,Currency,Type} ->
+	    Value=Data#daily_value.value,
+	    csv_gen:row(Target, [Date,Currency,Type,Value]);
+	_ -> no_tuple
+    end,
+    NewKey=ets:next(daily_values,Key),
+    write_record(Target,NewKey).
+    
