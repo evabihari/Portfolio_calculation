@@ -269,24 +269,47 @@ dump_to_csv(FileName) ->
     mnesia:start(),
     mnesia:load_textfile("data/mnesia.txt"),
     {ok,Target}=file:open(FileName,[write]),
-    csv_gen:row(Target, ["Date","Currency","Type","Value"]),
+    csv_gen:row(Target, ["Currency","Type","Date","Value"]),
+    ets:new(dump_table,[named_table,bag]),
     write_record(Target, ets:first(daily_values)),
+    ets:delete(dump_table),
     file:close(Target).
 
-write_record(_Target,'$end_of_table') ->
-    ok;
+write_record(Target,'$end_of_table') ->
+    convert_ets_to_csv(Target);
 write_record(Target,Key) ->
     io:format("~p~n",[Key]),
     [Data]=ets:lookup(daily_values,Key),
     case Key of
 	{Date,Currency,Type} ->
 	    Value=Data#daily_value.value,
-	    csv_gen:row(Target, [Date,Currency,Type,Value]);
+	    ets:insert(dump_table,{Date,[Currency,Type,Value]});
 	_ -> no_tuple
     end,
     NewKey=ets:next(daily_values,Key),
     write_record(Target,NewKey).
     
+
+convert_ets_to_csv(Target) ->
+    Result=sort_table(),
+    write_result(Target,Result).
+
+sort_table() ->
+    Orig_rows=ets:tab2list(dump_table),
+    F=fun(X,Y) ->
+	      {DateX,[CurrX,TypeX,_]}=X,
+	      {DateY,[CurrY,TypeY,_]}=Y,
+	      CurrX++TypeX++DateX<CurrY++TypeY++DateY
+      end,
+    lists:sort(F,Orig_rows).
+
+write_result(_Target,[]) ->
+    ok;
+write_result(Target,[{Date,[Currency,Type,Value]}|List])->
+    csv_gen:row(Target, [Currency,Type,Date,Value]),
+    write_result(Target,List).
+
+
 create_date_list('$end_of_table')->
     [];
 create_date_list({Date,Currency,Type}) ->

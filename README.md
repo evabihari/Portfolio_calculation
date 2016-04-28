@@ -39,9 +39,9 @@ env EDITOR=nano crontab -e
 ## Create CSV files from the Mnesia database ##
 
 `utils:dump_to_csv(FileName)`
-will dump the daily portfolio values to `Filename` but currently it is
-not ordered by any column.
-ToDo - set Order by Date
+will dump the daily portfolio values to `Filename` it is ordered by
+Currency, Type and Date -> esy to create graphs to see trend for a
+different paper types
 
 `utils:sum_csv(FileName)`
 will write a summary about the portfolio to `Filename`
