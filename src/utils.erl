@@ -207,8 +207,10 @@ create_date(Y,M,D) ->
 dump_daily_values_table() ->
     {{Y,M,D},_}=calendar:local_time(),
     DateString=integer_to_list(Y)++"-"++integer_to_list(M)++"-"++integer_to_list(D),
-    dump_daily_values_table("EUR",DateString),
-    dump_daily_values_table("HUF",DateString).
+ %   dump_daily_values_table("EUR",DateString),
+ %   dump_daily_values_table("HUF",DateString).
+   dump_daily_values_table("EUR",DateString),
+   dump_daily_values_table("HUF",DateString).
 
 dump_daily_values_table(Currency,DateString) ->
     Name="data/"++DateString++"-"++Currency++".dat",
@@ -232,7 +234,7 @@ draw_diagram(FileName,Types,Currency) ->
     String="set title \"" ++ FileName ++ " egyenlegek \" \n",
     ok=file:write(Target, String),
     FName= FileName--"data/",
-    add_diagram(Target,FName,Types,Currency),
+    add_diagram(Target,FileName,Types,Currency),
     file:close(Target),
     Cmd="/usr/local/bin/gnuplot "++ ?SPEC_GP,
     os:cmd(Cmd),
@@ -246,7 +248,7 @@ draw_diagram(FileName,Types,Currency) ->
 add_diagram(Target,FileName,[Type|Types],Currency) ->
     String = "plot "++generate_string(FileName,Type,1),
     ok=file:write(Target,String),
-    add_diagrams(Target,FileName,Types,Currency,1).
+    add_diagrams(Target,FileName,Types,Currency,2).
 
 add_diagrams(Target,FN,[],_Currency,_N) ->
     {ok,Cwd}=file:get_cwd(),
@@ -262,7 +264,7 @@ add_diagrams(Target,FileName,["SUM"|Types],"HUF",N)->
     %%% SUM should use y2 axis and modify some parameters...
     Line1="set y2tics \n",
     ok=file:write(Target,Line1),
-    Line2="set yrange   [900000 :*]",
+    Line2="set yrange   [900000 :*] \n",
     ok=file:write(Target,Line2),
     String="replot "++ "\""++FileName++"\""++" using 1:(stringcolumn(2) eq "++"\""++"SUM"++"\""++
         "? column(3):1/0) title "++"\""++"SUM"++"\""++" lc rgb \"black\"  axes x1y2" ++ "\n",
@@ -275,7 +277,8 @@ add_diagrams(Target,FileName,[Type|Types],Currency,N) ->
 
 generate_string(FileName,Type,N) ->
     "\""++FileName++"\""++" using 1:(stringcolumn(2) eq "++"\""++Type++"\""++
-        "? column(3):1/0) title "++"\""++Type++"\""++" ls "++ integer_to_list(N) ++" ls 15*(rand(0))" ++ "\n".
+        "? column(3):1/0) title "++"\""++Type++"\""++" ls "++ integer_to_list(N) ++ "\n".
+%% ++" ls 15*(rand(0))" ++ "\n".
 
 dump_to_csv(FileName) ->
     mnesia:start(),

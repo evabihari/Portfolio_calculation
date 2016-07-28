@@ -24,3 +24,4 @@ set timefmt '%Y-%m-%d'
 set xrange ['2016-01-28':*]
 set format x "%y-%m-%d"
 set datafile separator "|"
+set yrange [9000 :*]
