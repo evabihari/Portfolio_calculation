@@ -17,7 +17,7 @@
 	 create_date_list/1,
 	 get_and_sort_dates/0,
 	 collect_paper_types/0,
-	 sum_cvs/1]).
+	 sum_csv/1]).
 
 -define (GEN_GP,"scripts/generic.gp").
 -define (SPEC_GP,"scripts/specific.gp").
@@ -374,7 +374,7 @@ go_through2(E1,E2,Key) when is_tuple(Key)->
 go_through2(E1,E2,Key) ->
     go_through2(E1,E2,ets:next(daily_values,Key)).
 
-sum_cvs(FileName) ->
+sum_csv(FileName) ->
     mnesia:start(),
     mnesia:load_textfile("data/mnesia.txt"),
     {ok,Target}=file:open(FileName,[write]),
