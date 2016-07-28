@@ -207,15 +207,15 @@ create_date(Y,M,D) ->
 dump_daily_values_table() ->
     {{Y,M,D},_}=calendar:local_time(),
     DateString=integer_to_list(Y)++"-"++integer_to_list(M)++"-"++integer_to_list(D),
-    dump_daily_values_table("HUF",DateString),
-    dump_daily_values_table("EUR",DateString).
+    dump_daily_values_table("EUR",DateString),
+    dump_daily_values_table("HUF",DateString).
 
 dump_daily_values_table(Currency,DateString) ->
     Name="data/"++DateString++"-"++Currency++".dat",
     {ok,F} = file:open(Name,[read,write]),
     Sets=store_values(F,ets:match(daily_values,{'_',{'$1',Currency,'$2'},'$3'}),sets:new()),
     file:close(F),
-    draw_diagram(Name,sets:to_list(Sets)).
+    draw_diagram(Name,sets:to_list(Sets),Currency).
 
 store_values(_F,[],Types) ->
     Types;
@@ -226,27 +226,29 @@ store_values(F,[Value|VList],Set) ->
     NewSet=sets:add_element(Type,Set),
     store_values(F,VList,NewSet).
 
-draw_diagram(FileName,Types) ->
+draw_diagram(FileName,Types,Currency) ->
     file:copy(?GEN_GP,?SPEC_GP),
     {ok,Target}=file:open(?SPEC_GP,[read,append]),
     String="set title \"" ++ FileName ++ " egyenlegek \" \n",
     ok=file:write(Target, String),
-    add_diagram(Target,FileName,Types),
+    FName= FileName--"data/",
+    add_diagram(Target,FName,Types,Currency),
     file:close(Target),
     Cmd="/usr/local/bin/gnuplot "++ ?SPEC_GP,
     os:cmd(Cmd),
-    FName= FileName--"data/",
     GoogleFile=?GOOGLE_PATH ++FName++".pdf", 
     %% Wait until gnuplot will be finished
     timer:sleep(3000),
     file:copy(FileName++".pdf",GoogleFile).
 
-add_diagram(Target,FileName,[Type|Types]) ->
-    String = "plot "++generate_string(FileName,Type),
-    ok=file:write(Target,String),
-    add_diagrams(Target,FileName,Types).
 
-add_diagrams(Target,FN,[]) ->
+
+add_diagram(Target,FileName,[Type|Types],Currency) ->
+    String = "plot "++generate_string(FileName,Type,1),
+    ok=file:write(Target,String),
+    add_diagrams(Target,FileName,Types,Currency,1).
+
+add_diagrams(Target,FN,[],_Currency,_N) ->
     {ok,Cwd}=file:get_cwd(),
     io:format("Current directory is~p~n",[Cwd]),
     String = "set output '| /usr/local/bin/ps2pdf - " ++ Cwd++"/"++FN ++ ".pdf \n",
@@ -256,14 +258,24 @@ add_diagrams(Target,FN,[]) ->
         "replot \n",
     ok=file:write(Target,S2),
     ok;
-add_diagrams(Target,FileName,[Type|Types]) ->
-    String = "replot "++generate_string(FileName,Type),
+add_diagrams(Target,FileName,["SUM"|Types],"HUF",N)->
+    %%% SUM should use y2 axis and modify some parameters...
+    Line1="set y2tics \n",
+    ok=file:write(Target,Line1),
+    Line2="set yrange   [900000 :*]",
+    ok=file:write(Target,Line2),
+    String="replot "++ "\""++FileName++"\""++" using 1:(stringcolumn(2) eq "++"\""++"SUM"++"\""++
+        "? column(3):1/0) title "++"\""++"SUM"++"\""++" lc rgb \"black\"  axes x1y2" ++ "\n",
     ok=file:write(Target,String),
-    add_diagrams(Target,FileName,Types).
+    add_diagrams(Target,FileName,Types,"HUF",N);
+add_diagrams(Target,FileName,[Type|Types],Currency,N) ->
+    String = "replot "++generate_string(FileName,Type,N),
+    ok=file:write(Target,String),
+    add_diagrams(Target,FileName,Types,Currency,N+1).
 
-generate_string(FileName,Type) ->
+generate_string(FileName,Type,N) ->
     "\""++FileName++"\""++" using 1:(stringcolumn(2) eq "++"\""++Type++"\""++
-        "? column(3):1/0) title "++"\""++Type++"\""++" ls 15*(rand(0))" ++ "\n".
+        "? column(3):1/0) title "++"\""++Type++"\""++" ls "++ integer_to_list(N) ++" ls 15*(rand(0))" ++ "\n".
 
 dump_to_csv(FileName) ->
     mnesia:start(),
