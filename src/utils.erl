@@ -214,10 +214,14 @@ dump_daily_values_table() ->
 
 dump_daily_values_table(Currency,DateString) ->
     Name="data/"++DateString++"-"++Currency++".dat",
-    {ok,F} = file:open(Name,[read,write]),
+    NameIn="data/"++DateString++"-"++Currency++"unsorted"++".dat",
+    {ok,F} = file:open(NameIn,[read,write]),
     Sets=store_values(F,ets:match(daily_values,{'_',{'$1',Currency,'$2'},'$3'}),sets:new()),
     file:close(F),
-    draw_diagram(Name,sets:to_list(Sets),Currency).
+    sort(NameIn,Name),
+    file:delete(NameIn),
+    draw_diagram(Name,sets:to_list(Sets),Currency),
+    file:delete(Name).
 
 store_values(_F,[],Types) ->
     Types;
@@ -244,6 +248,16 @@ draw_diagram(FileName,Types,Currency) ->
     file:copy(FileName++".pdf",GoogleFile).
 
 
+add_diagram(Target,FileName,Types,"HUF") ->
+    %%% SUM should use y2 axis and modify some parameters...
+    Line1="set y2tics \n",
+    ok=file:write(Target,Line1),
+    Line2="set yrange   [900000 :*] \n",
+    ok=file:write(Target,Line2),
+    String="plot "++ "\""++FileName++"\""++" using 1:(stringcolumn(2) eq "++"\""++"SUM"++"\""++
+        "? column(3):1/0) with boxes title "++"\""++"SUM"++"\""++" lc rgb \"orange\"  axes x1y2" ++ "\n",
+    ok=file:write(Target,String),
+    add_diagrams(Target,FileName,lists:delete("SUM",Types),"HUF",1);
 
 add_diagram(Target,FileName,[Type|Types],Currency) ->
     String = "plot "++generate_string(FileName,Type,1),
@@ -260,16 +274,7 @@ add_diagrams(Target,FN,[],_Currency,_N) ->
         "replot \n",
     ok=file:write(Target,S2),
     ok;
-add_diagrams(Target,FileName,["SUM"|Types],"HUF",N)->
-    %%% SUM should use y2 axis and modify some parameters...
-    Line1="set y2tics \n",
-    ok=file:write(Target,Line1),
-    Line2="set yrange   [900000 :*] \n",
-    ok=file:write(Target,Line2),
-    String="replot "++ "\""++FileName++"\""++" using 1:(stringcolumn(2) eq "++"\""++"SUM"++"\""++
-        "? column(3):1/0) title "++"\""++"SUM"++"\""++" lc rgb \"black\"  axes x1y2" ++ "\n",
-    ok=file:write(Target,String),
-    add_diagrams(Target,FileName,Types,"HUF",N);
+
 add_diagrams(Target,FileName,[Type|Types],Currency,N) ->
     String = "replot "++generate_string(FileName,Type,N),
     ok=file:write(Target,String),
@@ -277,9 +282,18 @@ add_diagrams(Target,FileName,[Type|Types],Currency,N) ->
 
 generate_string(FileName,Type,N) ->
     "\""++FileName++"\""++" using 1:(stringcolumn(2) eq "++"\""++Type++"\""++
-        "? column(3):1/0) title "++"\""++Type++"\""++" ls "++ integer_to_list(N) ++ "\n".
-%% ++" ls 15*(rand(0))" ++ "\n".
+        "? column(3):1/0) title "++"\""++Type++"\""++" lc rgb \""++ map_to_color(N) ++ "\"\n".
 
+map_to_color(1) ->
+    "blue";
+map_to_color(2) ->
+    "red";
+map_to_color(3) ->
+    "yellow";
+map_to_color(4) ->
+    "green";
+map_to_color(_N) ->
+    "black".
 dump_to_csv(FileName) ->
     mnesia:start(),
     mnesia:load_textfile("data/mnesia.txt"),
@@ -422,3 +436,21 @@ format_data([{_Currency, " "}|List]) ->
 format_data([{Currency, Value}|List]) ->
     [SValue]=io_lib:fwrite("~.2f",[Value]),
     [SValue ++" "++ Currency|format_data(List)].
+
+sort(In,Out)->
+    {ok,F}=file:open(In,[read]),
+    Lines=read(F,file:read_line(F)),
+    NewLines=lists:sort(Lines),
+    {ok,O}=file:open(Out,[write]),
+    write(O,NewLines).
+
+read(_F,eof) ->
+    [];
+read(F,{ok,Data}) ->
+    [Data|read(F,file:read_line(F))].
+    
+write(O,[]) ->
+    file:close(O);
+write(O,[H|T]) ->
+    file:write(O,H),
+    write(O,T).
