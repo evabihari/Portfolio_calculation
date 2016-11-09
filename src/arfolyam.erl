@@ -154,7 +154,10 @@ extract_date(Struct,?ML_URL) ->
     re:replace(binary_to_list(DateBin),"\\Q.\\E","-",[global,{return,list}]).
 
 create_record_and_store(Name, RateInfo, Date) ->
-    [ValueString,Currency]=string:tokens(RateInfo," "),
+    [ValueString,Currency]=case string:tokens(RateInfo," ") of
+			       [A,B|_] -> [A,B];
+			       [A] -> ["0",A]   % daily value is missing from the table
+			   end,
     {Value,_}=string:to_float(ValueString),
     Record=#exchange{name_and_date={utils:encode_name(string:strip(Name,both)),
                                     Date},
