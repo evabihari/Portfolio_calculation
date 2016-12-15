@@ -17,6 +17,7 @@
 	 create_date_list/1,
 	 get_and_sort_dates/0,
 	 collect_paper_types/0,
+	 calculate_historical_values/0,
 	 sum_csv/1]).
 
 -define (GEN_GP,"scripts/generic.gp").
@@ -36,6 +37,33 @@ calculate_portfolio()->
     end,
     FirstKey=mnesia:dirty_first(portfolio),
     calculate_portfolio2(FirstKey,Today).
+
+calculate_portfolio(Date)->
+    case mnesia:dirty_match_object(daily_values,
+                       #daily_value{date_currency_type={Date,'_','_'},_='_'}) of
+        [] -> ok;
+        Results -> remove_old_data(Results)
+    end,
+    FirstKey=mnesia:dirty_first(portfolio),
+    calculate_portfolio2(FirstKey,Date).
+
+
+calculate_historical_values() ->
+    {{Y,M,D},_}=calendar:local_time(),
+    Today=calendar:date_to_gregorian_days(Y,M,D),
+    Start=calendar:date_to_gregorian_days(2016,2,1),
+    calculate_historical_values(Start,Today).
+calculate_historical_values(Today,Today) ->
+    ok;
+calculate_historical_values(GrDay,Today) ->
+    {Y,M,D}=calendar:gregorian_days_to_date(GrDay),
+    Date=int_to_string(Y)++"-"++int_to_string(M)++"-"++int_to_string(D),
+    case mnesia:dirty_match_object(exchanges,
+                       #exchange{name_and_date={'_',Date},_='_'}) of
+        [] -> ok;
+        _Results -> calculate_portfolio(Date)
+    end,    
+    calculate_historical_values(GrDay+1,Today).
 %%--------------------------------------------------------------------
 %% @doc
 %% @spec
@@ -125,8 +153,8 @@ agregate_daily_values(Portfolio,Value,Date) ->
     mnesia:dirty_write(daily_values,New_DV).
 
 sum_daily_values(Date) ->
-    sum_daily_values(Date,0,0,mnesia:dirty_first(daily_values)).
-sum_daily_values(Date,EUR_SUM, HUF_SUM,'$end_of_table') ->
+    sum_daily_values(Date,0,0,0,mnesia:dirty_first(daily_values)).
+sum_daily_values(Date,EUR_SUM, HUF_SUM, HUF1_SUM,'$end_of_table') ->
     EUR_DV=#daily_value{
               date_currency_type={Date,"EUR","SUM"},
               value=EUR_SUM},
@@ -134,22 +162,30 @@ sum_daily_values(Date,EUR_SUM, HUF_SUM,'$end_of_table') ->
     HUF_DV=#daily_value{
               date_currency_type={Date,"HUF","SUM"},
               value=HUF_SUM},
-    mnesia:dirty_write(daily_values,HUF_DV);
-sum_daily_values(Date,EUR_SUM, HUF_SUM,Key) ->
-   {New_EUR_SUM,NEW_HUF_SUM} = case Key of
-                                   {Date,"EUR","SUM"} -> {EUR_SUM,HUF_SUM};
-                                   {Date,"HUF","SUM"} -> {EUR_SUM,HUF_SUM};
+    mnesia:dirty_write(daily_values,HUF_DV),
+    HUF1_DV=#daily_value{
+              date_currency_type={Date,"HUF1","SUM"},
+              value=HUF1_SUM},
+    mnesia:dirty_write(daily_values,HUF1_DV);
+sum_daily_values(Date,EUR_SUM, HUF_SUM, HUF1_SUM, Key) ->
+   {New_EUR_SUM,NEW_HUF_SUM,NEW_HUF1_SUM} = case Key of
+                                   {Date,"EUR","SUM"} -> {EUR_SUM,HUF_SUM,HUF1_SUM};
+                                   {Date,"HUF","SUM"} -> {EUR_SUM,HUF_SUM,HUF1_SUM};
+                                   {Date,"HUF1","SUM"} -> {EUR_SUM,HUF_SUM,HUF1_SUM};
                                    {Date,"EUR",_} ->
                                        [Record]=mnesia:dirty_read(daily_values,Key),
-                                       {EUR_SUM+Record#daily_value.value,HUF_SUM};
+                                       {EUR_SUM+Record#daily_value.value,HUF_SUM,HUF1_SUM};
                                    {Date,"HUF",_} ->
                                        [Record]=mnesia:dirty_read(daily_values,Key),
-                                       {EUR_SUM,HUF_SUM+Record#daily_value.value};
+                                       {EUR_SUM,HUF_SUM+Record#daily_value.value,HUF1_SUM};
+                                   {Date,"HUF1",_} ->
+                                       [Record]=mnesia:dirty_read(daily_values,Key),
+                                       {EUR_SUM,HUF_SUM,HUF1_SUM+Record#daily_value.value};						
                                    _ ->
-                                        {EUR_SUM,HUF_SUM}
+                                        {EUR_SUM,HUF_SUM,HUF1_SUM}
                                end,
     New_key=mnesia:dirty_next(daily_values,Key),
-    sum_daily_values(Date,New_EUR_SUM,NEW_HUF_SUM,New_key).
+    sum_daily_values(Date,New_EUR_SUM,NEW_HUF_SUM,NEW_HUF1_SUM,New_key).
     
 encode_name([]) -> "";
 encode_name([225|Name])->
@@ -209,16 +245,20 @@ dump_daily_values_table() ->
     DateString=integer_to_list(Y)++"-"++integer_to_list(M)++"-"++integer_to_list(D),
  %   dump_daily_values_table("EUR",DateString),
  %   dump_daily_values_table("HUF",DateString).
-   dump_daily_values_table("EUR",DateString),
-   dump_daily_values_table("HUF",DateString).
+    dump_daily_values_table("EUR",DateString),
+    dump_daily_values_table("HUF",DateString),
+    dump_daily_values_table("HUF1",DateString).
 
 dump_daily_values_table(Currency,DateString) ->
     Name="data/"++DateString++"-"++Currency++".dat",
+    io:format("dump_daily_values_table, Name=~p, DateString=~p~n",[Name,DateString]),
     NameIn="data/"++DateString++"-"++Currency++"unsorted"++".dat",
+    io:format("dump_daily_values_table, NameIn=~p~n",[NameIn]),
     {ok,F} = file:open(NameIn,[read,write]),
     Sets=store_values(F,ets:match(daily_values,{'_',{'$1',Currency,'$2'},'$3'}),sets:new()),
     file:close(F),
     sort(NameIn,Name),
+    io:format("dump_daily_values_table, after sort ~n",[]),
     file:delete(NameIn),
     draw_diagram(Name,sets:to_list(Sets),Currency),
     file:delete(Name).
@@ -241,7 +281,9 @@ draw_diagram(FileName,Types,Currency) ->
     add_diagram(Target,FileName,Types,Currency),
     file:close(Target),
     Cmd="/usr/local/bin/gnuplot "++ ?SPEC_GP,
-    os:cmd(Cmd),
+    io:format("draw_diagram, call Cmd=~p~n",[Cmd]),
+    Result=os:cmd(Cmd),
+    io:format("os:cmd Result=~pN`",[Result]),
     GoogleFile=?GOOGLE_PATH ++FName++".pdf", 
     %% Wait until gnuplot will be finished
     timer:sleep(3000),
@@ -249,6 +291,7 @@ draw_diagram(FileName,Types,Currency) ->
 
 
 add_diagram(Target,FileName,Types,"HUF") ->
+    io:format("add_diagram(Target,FileName,Types,'HUF') ~n",[]),
     %%% SUM should use y2 axis and modify some parameters...
     Line1="set y2tics \n",
     ok=file:write(Target,Line1),
@@ -259,12 +302,26 @@ add_diagram(Target,FileName,Types,"HUF") ->
     ok=file:write(Target,String),
     add_diagrams(Target,FileName,lists:delete("SUM",Types),"HUF",1);
 
+add_diagram(Target,FileName,Types,"HUF1") ->
+    io:format("add_diagram(Target,FileName,Types,'HUF1') ~n",[]),
+    %%% SUM should use y2 axis and modify some parameters...
+    Line1="set y2tics \n",
+    ok=file:write(Target,Line1),
+    Line2="set yrange   [900000 :*] \n",
+    ok=file:write(Target,Line2),
+    String="plot "++ "\""++FileName++"\""++" using 1:(stringcolumn(2) eq "++"\""++"SUM"++"\""++
+        "? column(3):1/0) with boxes title "++"\""++"SUM"++"\""++" lc rgb \"orange\"  " ++ "\n",
+    ok=file:write(Target,String),
+    add_diagrams(Target,FileName,lists:delete("SUM",Types),"HUF1",1);
+
 add_diagram(Target,FileName,[Type|Types],Currency) ->
+    io:format("add_diagram(Target=~p,FileName=~p,[Type=~p|Types],Currency=~p) ~n",[Target,FileName,Type,Currency]),
     String = "plot "++generate_string(FileName,Type,1),
     ok=file:write(Target,String),
     add_diagrams(Target,FileName,Types,Currency,2).
 
 add_diagrams(Target,FN,[],_Currency,_N) ->
+    io:format("add_diagram(Target,FN,[],_Currency,_N) ~n",[]),
     {ok,Cwd}=file:get_cwd(),
     io:format("Current directory is~p~n",[Cwd]),
     String = "set output '| /usr/local/bin/ps2pdf - " ++ Cwd++"/"++FN ++ ".pdf \n",
@@ -273,9 +330,11 @@ add_diagrams(Target,FN,[],_Currency,_N) ->
         "set term post portrait color \"Times-Roman\" 12 \n" ++
         "replot \n",
     ok=file:write(Target,S2),
+    io:format("add_diagrams, after file:write, Target=~p~n",[Target]),
     ok;
 
 add_diagrams(Target,FileName,[Type|Types],Currency,N) ->
+    io:format("add_diagram(Target,FileName,[Type|Types],Currency,N=~p) ~n",[N]),
     String = "replot "++generate_string(FileName,Type,N),
     ok=file:write(Target,String),
     add_diagrams(Target,FileName,Types,Currency,N+1).

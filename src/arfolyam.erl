@@ -13,11 +13,15 @@
          calculate_portfolio/0,
          mkb/0,
          get_value/1,
-         init/0].
+         init/0,
+	 equilor/0].
 -define (VL_URL,"https://www.viennalife.hu/befektetes/eszkozalapok/napi-arfolyam").
 -define (ML_URL,"http://www.metlifehungary.hu/portfoliok").
 -define (MKB_URL,"https://alapkezelo.mkb.hu/arfolyamok_es_hozamok/arfolyam_tablazat/index.html").
 -define (PORTFOLIO_FILE,"data/portfolio.txt").
+-define (EQUILOR_PRIMUS,"http://befektetesi.alapozo.hu/befektetesi-alapok/633-equilor-primus-alapok-alapja").
+-define (CONCORDE_VM,"http://befektetesi.alapozo.hu/befektetesi-alapok/368-concorde-vm-abszolut-szarmaztatott-alap").
+-define(ENEFI,"http://privatbankar.hu/reszvenyarfolyamok").
 -include("../include/records.hrl").
 
 %%%===================================================================
@@ -26,6 +30,7 @@
 start() ->
     start(?VL_URL),
     mkb(),
+    equilor(),
     start(?ML_URL,ok).
 start(Url) ->
     start(Url,init()).
@@ -252,6 +257,8 @@ mkb()->
     decode_mkb_results(ResultList).
 
 
+
+
 decode_mkb_results([])->
     [];
 decode_mkb_results([R1,R2,R3,R4,R5|List]) ->
@@ -281,6 +288,39 @@ decode_mkb_results([R1,R2,R3,R4,R5|List]) ->
 decode_mkb_results(_) ->
     io:format("??~n",[]),
     ok.
+
+equilor() ->
+    equilor(?EQUILOR_PRIMUS),
+    equilor(?CONCORDE_VM).
+
+equilor(Url)->
+    R=httpc:request(Url),
+    {ok, {{"HTTP/1.1",_ReturnCode, _State}, _Head, Body}} = R,
+    Struct=mochiweb_html:parse(Body),
+    Path="html/body/div/div/div/div/div/div/div/div/section/div/div/table/tbody/tr/td",
+    ResultList=mochiweb_xpath:execute(Path,Struct),
+    {ok,File} = file:open("EQ_Primus_results.txt",[read,write]),
+    file:write(File,io_lib:print(ResultList)),
+    decode_equilor(ResultList,Url).
+    
+
+decode_equilor([],_) ->
+    [];
+decode_equilor([DT,VT|List],Url) ->
+						% example: {<<"td">>,[],[<<"2016-12-13">>]},{<<"td">>,[],[<<"1,188894">>]}
+
+    Name=case Url of
+	     ?EQUILOR_PRIMUS ->"Equilor Primus Alapok Alapja";
+	     ?CONCORDE_VM -> "Concorde VM Abszolut Szarmaztatott Alap"
+    end,
+    Date=binary_to_list(lists:nth(1,erlang:element(3,DT))),
+    Value=list_to_float(binary_to_list(lists:nth(1,erlang:element(3,VT)))),
+    Record=#exchange{name_and_date=
+			 {utils:encode_name(string:strip(Name,both)),Date},
+		     value=Value,
+		     currency="HUF1"},
+    mnesia:dirty_write(exchanges,Record),
+    decode_equilor(List,Url).
 
 get_value({<<"td">>,[],[{<<"a">>,_,_}|_]}) ->
     [];

@@ -19,7 +19,9 @@ main(_) ->
         end,
 	arfolyam:start(),
         arfolyam:read_portfolio(),
+        io:format("read_portfolio() done~n",[]),
 	arfolyam:calculate_portfolio(),
+        io:format("calculate_portfolio() done~n",[]),
         utils:dump_daily_values_table(),
         mnesia:dump_to_textfile("data/mnesia.txt"),
         mnesia:backup("data/backup.bup").
