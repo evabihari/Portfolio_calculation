@@ -291,7 +291,8 @@ decode_mkb_results(_) ->
 
 equilor() ->
     equilor(?EQUILOR_PRIMUS),
-    equilor(?CONCORDE_VM).
+    equilor(?CONCORDE_VM),
+    enefi().
 
 equilor(Url)->
     R=httpc:request(Url),
@@ -303,6 +304,7 @@ equilor(Url)->
     file:write(File,io_lib:print(ResultList)),
     decode_equilor(ResultList,Url).
     
+
 
 decode_equilor([],_) ->
     [];
@@ -322,6 +324,35 @@ decode_equilor([DT,VT|List],Url) ->
     mnesia:dirty_write(exchanges,Record),
     decode_equilor(List,Url).
 
+enefi() ->
+    Url=?ENEFI,
+    R=httpc:request(Url),
+    {ok, {{"HTTP/1.1",_ReturnCode, _State}, _Head, Body}} = R,
+    Struct=mochiweb_html:parse(Body),
+    Path="html/body/div/div/div/div/div/ul/li/div/div/table/tbody/tr",
+    ResultList=mochiweb_xpath:execute(Path,Struct),
+    {ok,File} = file:open("ENEFI_results.txt",[read,write]),
+    file:write(File,io_lib:print(ResultList)),    
+    decode_enefi(ResultList).
+
+decode_enefi([])->
+    [];
+decode_enefi([{<<"tr">>,
+	       [{<<"class">>,_C},
+		{<<"data-title">>,<<"enefi">>}],Rest}|List]) ->
+    [_TH,Price,_Min,_Max,_Diff,_BuyOffer,_SellOffer,_,DateElement,_Time|_]=Rest,
+    Value=list_to_integer(get_value(Price)),
+    Date=get_value(DateElement),
+    Name="ENEFI reszveny",
+    Record=#exchange{name_and_date=
+			 {utils:encode_name(string:strip(Name,both)),Date},
+		     value=Value,
+		     currency="HUF1"},
+    mnesia:dirty_write(exchanges,Record),
+    decode_enefi(List);    
+decode_enefi([_H|List]) ->
+    decode_enefi(List).
+		    
 get_value({<<"td">>,[],[{<<"a">>,_,_}|_]}) ->
     [];
 get_value({<<"td">>,_,[BinValue|_]}) ->
