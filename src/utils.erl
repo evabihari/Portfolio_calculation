@@ -307,12 +307,12 @@ add_diagram(Target,FileName,Types,"HUF1") ->
     %%% SUM should use y2 axis and modify some parameters...
     Line1="set y2tics \n",
     ok=file:write(Target,Line1),
-    Line2="set yrange   [600000 : 4200000] \n",
+    Line2="set yrange   [600000 : *] \n",
     ok=file:write(Target,Line2),
-    Line3="set y2range   [5900000 :*] \n",
+    Line3="set y2range   [4500000 :*] \n",
     ok=file:write(Target,Line3),
     String="plot "++ "\""++FileName++"\""++" using 1:(stringcolumn(2) eq "++"\""++"SUM"++"\""++
-        "? column(3):1/0) with boxes title "++"\""++"SUM"++"\""++" lc rgb \"orange\"  " ++ "\n",
+        "? column(3):1/0) with boxes title "++"\""++"SUM"++"\""++" lc rgb \"orange\"  axes x1y2" ++ "\n",
     ok=file:write(Target,String),
     add_diagrams(Target,FileName,lists:delete("SUM",Types),"HUF1",1);
 
